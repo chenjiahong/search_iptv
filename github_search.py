@@ -77,15 +77,13 @@ def do_search(keywords, iptv_result, update_weeks):
                 continue
 
             start_time = time.perf_counter()
-            line_count = 0
             m3u_content = content_file.decoded_content.decode("utf-8")
             line_contents = m3u_content.split("\n")
             cost_time = time.perf_counter() - start_time
             print("-get file %s cost time: %f s" % (file_name, cost_time))
             for line_count, item in enumerate(line_contents):
-                index = 0
-                for index, keyword in enumerate(keywords):
-                    if ((keyword in item) or (is_sc and alt_keywords[index] in item)):
+                for keyword, alt_keyword in zip(keywords, alt_keywords):
+                    if ((keyword in item) or is_sc and (alt_keyword in item)):
                         iptv_result[line_contents[line_count + 1]] = item + "\n"
                         break
 

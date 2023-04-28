@@ -63,11 +63,18 @@ def do_search(keywords, iptv_result, update_weeks):
         if (repo.updated_at.date() < n_weeks_ago):
             break
 
-        contents = repo.get_contents("")
+        # 获取仓库的根目录
+        root = repo.get_contents("")
         cost_time = time.perf_counter() - start_time
         print("-get repo %s cost time: %f s" % (repo.full_name, cost_time))
-        for content_file in contents:
+        # 遍历仓库中的所有文件
+        while root:
+            content_file = root.pop(0)
             file_name = content_file.name
+            if content_file.type == "dir":
+                root.extend(repo.get_contents(content_file.path))
+                continue
+
             if (file_name.rfind(".m3u") == -1):
                 continue
 
@@ -80,7 +87,7 @@ def do_search(keywords, iptv_result, update_weeks):
             m3u_content = content_file.decoded_content.decode("utf-8")
             line_contents = m3u_content.split("\n")
             cost_time = time.perf_counter() - start_time
-            print("-get file %s cost time: %f s" % (file_name, cost_time))
+            print("get file %s cost time: %f s" % (file_name, cost_time))
             for line_count, item in enumerate(line_contents):
                 for keyword, alt_keyword in zip(keywords, alt_keywords):
                     if ((keyword in item) or is_sc and (alt_keyword in item)):
@@ -95,8 +102,8 @@ g = Github("your token here")
 iptv_result = dict()
 # 定义搜索关键字
 keywords = ["凤凰", "台湾"]
+result_count = 0;
 try:
-    result_count = 0;
     start_time = time.perf_counter()
     do_search(keywords, iptv_result, 54)
     cost_time = time.perf_counter() - start_time
@@ -107,18 +114,24 @@ finally:
         exit(1)
 
     found_count = 0
-    file_name = os.path.dirname(__file__) + "/" + keywords[0] + str(all_start_time) + ".m3u"
+    file_name = os.path.dirname(__file__) + "/" + keywords[0] + datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S") + ".m3u"
     file = open(file_name, "w")
     file.write('#EXTM3U name="github"\n')
+    test_index = 0
     for key, value in iptv_result.items():
-        if (value.find("凤凰古城") > 0):
+        test_index = test_index + 1
+        if (value.find("凤凰古城") > 0 or "广播" in value):
         #or value.find("香港") == -1 and value.find("电影") == -1 and value.find("美洲") == -1):
             continue
 
-        print("--test " + value + key)
+        print("testing(%d/%d) %s"%(test_index, result_count, value + key))
         if ("http" in key and is_http_link_valid(key) or "rtmp" in key and is_rtmp_link_valid(key)):
             file.write(value + key + "\n")
             found_count = found_count + 1
-    file.close()
+            print("pass")
+    if (found_count == 0):
+        os.remove(file_name)
+    else:
+        file.close()
     print("-----found %d results cost time: %f s" % (found_count, time.perf_counter() - all_start_time))
 

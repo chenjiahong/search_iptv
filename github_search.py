@@ -1,3 +1,5 @@
+#coding=utf-8
+
 from github import Github
 import time
 import datetime
@@ -5,6 +7,7 @@ import requests
 import pyrtmp
 from fake_useragent import UserAgent
 import os
+import platform
 import unicodedata
 import opencc
 
@@ -78,13 +81,16 @@ def do_search(keywords, iptv_result, update_weeks):
             if (file_name.rfind(".m3u") == -1):
                 continue
 
-            if (content_file.encoding != "base64"):
-                print(file_name + " is not base64")
+            need_decode = True
+            if (content_file.encoding == "none"):
+                need_decode = False
+            elif (content_file.encoding != "base64"):
+                print("\033[1;31m" + file_name + " encoding is " + content_file.encoding + "\033[0m")
                 # other encode here
                 continue
 
             start_time = time.perf_counter()
-            m3u_content = content_file.decoded_content.decode("utf-8")
+            m3u_content = content_file.decoded_content.decode("utf-8") if need_decode else content_file.content
             line_contents = m3u_content.split("\n")
             cost_time = time.perf_counter() - start_time
             print("get file %s cost time: %f s" % (file_name, cost_time))
@@ -102,20 +108,23 @@ g = Github("your token here")
 iptv_result = dict()
 # 定义搜索关键字
 keywords = ["凤凰", "台湾"]
+all_keywords = "".join(keywords)
 result_count = 0;
+if (platform.system() == "Windows"):
+    os.system("")
 try:
     start_time = time.perf_counter()
     do_search(keywords, iptv_result, 54)
     cost_time = time.perf_counter() - start_time
-    print("-----search keyword %s cost time: %f s with %d results" % (keywords[0], cost_time, len(iptv_result) - result_count))
+    print("\033[1;32m-----search keyword %s cost time: %f s with %d results\033[0m" % (all_keywords, cost_time, len(iptv_result) - result_count))
     result_count = len(iptv_result)
 finally:
     if (not bool(iptv_result)):
         exit(1)
 
     found_count = 0
-    file_name = os.path.dirname(__file__) + "/" + keywords[0] + datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S") + ".m3u"
-    file = open(file_name, "w")
+    file_name = os.path.dirname(__file__) + "/" + all_keywords + datetime.datetime.now().strftime("%Y%m%d%H%M%S") + ".m3u"
+    file = open(file_name, "w", encoding = 'utf-8')
     file.write('#EXTM3U name="github"\n')
     test_index = 0
     for key, value in iptv_result.items():
@@ -126,9 +135,9 @@ finally:
 
         print("testing(%d/%d) %s"%(test_index, result_count, value + key))
         if ("http" in key and is_http_link_valid(key) or "rtmp" in key and is_rtmp_link_valid(key)):
-            file.write(value + key + "\n")
+            file.write(value + key + "\n\n")
             found_count = found_count + 1
-            print("pass")
+            print("\033[1;32mpass\033[0m")
     if (found_count == 0):
         os.remove(file_name)
     else:

@@ -46,13 +46,20 @@ def is_rtmp_link_valid(link):
         return False
 
 def do_search(keywords, iptv_result, update_weeks):
-    is_sc = is_chinese(keywords[0])
-    alt_keywords = keywords.copy()
-    if (is_sc):
-        index = 0
-        for index, keyword in enumerate(keywords):
-            alt_keywords[index] = simplified_to_traditional(keyword)
-            print(keyword + alt_keywords[index])
+    new_keywords = keywords.copy()
+    for keyword in keywords:
+        new_keyword = keyword
+        if keyword.isascii():
+            if keyword == keyword.upper():
+                new_keyword = keyword.lower()
+            else:
+                new_keyword = keyword.upper()
+            new_keywords.append(new_keyword)
+        elif is_chinese(keyword):
+            new_keyword = simplified_to_traditional(keyword)
+            if new_keyword != keyword:
+                new_keywords.append(new_keyword)
+        print(keyword + new_keyword)
    # 使用 GitHub API 搜索仓库
     repos = g.search_repositories(query = "iptv", sort = "updated")
     # 打印搜索结果
@@ -95,8 +102,8 @@ def do_search(keywords, iptv_result, update_weeks):
             cost_time = time.perf_counter() - start_time
             print("get file %s cost time: %f s" % (file_name, cost_time))
             for line_count, item in enumerate(line_contents):
-                for keyword, alt_keyword in zip(keywords, alt_keywords):
-                    if ((keyword in item) or is_sc and (alt_keyword in item)):
+                for keyword in new_keywords:
+                    if keyword in item:
                         iptv_result[line_contents[line_count + 1]] = item + "\n"
                         break
 
@@ -107,7 +114,7 @@ g = Github("your token here")
 
 iptv_result = dict()
 # 定义搜索关键字
-keywords = ["凤凰", "台湾"]
+keywords = ["凤凰", "台湾", "cnn", "bbc"]
 all_keywords = "".join(keywords)
 result_count = 0;
 if (platform.system() == "Windows"):
@@ -120,6 +127,7 @@ try:
     result_count = len(iptv_result)
 finally:
     if (not bool(iptv_result)):
+        print("\033[1;31mresult is empty\033[0m")
         exit(1)
 
     found_count = 0
@@ -129,7 +137,7 @@ finally:
     test_index = 0
     for key, value in iptv_result.items():
         test_index = test_index + 1
-        if (value.find("凤凰古城") > 0 or "广播" in value):
+        if (value.find("凤凰古城") > 0 or "广播" in value or "凤凰传奇" in value):
         #or value.find("香港") == -1 and value.find("电影") == -1 and value.find("美洲") == -1):
             continue
 

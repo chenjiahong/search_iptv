@@ -34,7 +34,13 @@ def is_http_link_valid(link):
         fake_headers = {"user-agent": UserAgent().random}
         response = requests.get(link, timeout = (3, 2), headers = fake_headers)
         return response.status_code == 200
-    except:
+    except requests.exceptions.Timeout:
+        # 处理超时异常
+        print("请求超时")
+        return False
+    except requests.exceptions.RequestException as e:
+        # 处理其他请求异常
+        print("请求发生错误:", e)
         return False
 
 def is_rtmp_link_valid(link):
@@ -107,6 +113,10 @@ def do_search(keywords, iptv_result, update_weeks):
                         iptv_result[line_contents[line_count + 1]] = item + "\n"
                         break
 
+        if len(iptv_result) > 50:
+            print("results up to 50")
+            break
+
 
 all_start_time = time.perf_counter()
 # 创建 Github 对象
@@ -121,7 +131,7 @@ if (platform.system() == "Windows"):
     os.system("")
 try:
     start_time = time.perf_counter()
-    do_search(keywords, iptv_result, 54)
+    do_search(keywords, iptv_result, 78)
     cost_time = time.perf_counter() - start_time
     print("\033[1;32m-----search keyword %s cost time: %f s with %d results\033[0m" % (all_keywords, cost_time, len(iptv_result) - result_count))
     result_count = len(iptv_result)
@@ -142,7 +152,9 @@ finally:
             continue
 
         print("testing(%d/%d) %s"%(test_index, result_count, value + key))
-        if ("http" in key and is_http_link_valid(key) or "rtmp" in key and is_rtmp_link_valid(key)):
+        if (key.startswith("https") or 
+            key.startswith("http") and is_http_link_valid(key) or
+            key.startswith("rtmp") and is_rtmp_link_valid(key)):
             file.write(value + key + "\n\n")
             found_count = found_count + 1
             print("\033[1;32mpass\033[0m")

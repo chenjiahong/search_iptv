@@ -28,6 +28,22 @@ def is_chinese(s):
             return False
     return True
 
+def is_https_link_valid(link):
+    result = False 
+    error = None 
+    try:
+        urllib.request.urlopen(url = link, timeout = 3) 
+        result = True 
+    except urllib.error.URLError as exc: 
+        error = 'URL错误: {0}'.format(str(exc)) 
+    except urllib.error.HTTPError as exc: 
+        error = 'HTTP错误: {0}'.format(str(exc)) 
+    except Exception as exc: 
+        error = '未知错误: {0}'.format(str(exc))
+    if error:
+        print(error)
+        return False
+    return result
 
 def is_http_link_valid(link):
     try:
@@ -51,7 +67,7 @@ def is_rtmp_link_valid(link):
     except:
         return False
 
-def do_search(keywords, iptv_result, update_weeks):
+def do_search(keywords, iptv_result, end_weeks, begin_weeks = 0):
     new_keywords = keywords.copy()
     for keyword in keywords:
         new_keyword = keyword
@@ -65,9 +81,14 @@ def do_search(keywords, iptv_result, update_weeks):
             new_keyword = simplified_to_traditional(keyword)
             if new_keyword != keyword:
                 new_keywords.append(new_keyword)
-        print(keyword + new_keyword)
+        print("keywords: " + keyword + new_keyword)
    # 使用 GitHub API 搜索仓库
     repos = g.search_repositories(query = "iptv", sort = "updated")
+    today = datetime.date.today()
+    early_date = today - datetime.timedelta(weeks = end_weeks)
+    late_date = today - datetime.timedelta(weeks = begin_weeks)
+    print("from\t" + str(early_date))
+    print("to\t" + str(late_date))
     # 打印搜索结果
     for repo in repos:
         print("---" + repo.full_name + "---" + repo.url)
@@ -75,8 +96,12 @@ def do_search(keywords, iptv_result, update_weeks):
             continue
 
         start_time = time.perf_counter()
-        n_weeks_ago = datetime.date.today() - datetime.timedelta(weeks = update_weeks)
-        if (repo.updated_at.date() < n_weeks_ago):
+        last_updated = repo.updated_at.date()
+        print("update at " + str(last_updated))
+        if last_updated  > late_date:
+            continue;
+        
+        if (last_updated < early_date):
             break
 
         # 获取仓库的根目录
@@ -88,7 +113,8 @@ def do_search(keywords, iptv_result, update_weeks):
             content_file = root.pop(0)
             file_name = content_file.name
             if content_file.type == "dir":
-                root.extend(repo.get_contents(content_file.path))
+                if file_name != ".github":
+                    root.extend(repo.get_contents(content_file.path))
                 continue
 
             if (file_name.rfind(".m3u") == -1):
@@ -108,9 +134,13 @@ def do_search(keywords, iptv_result, update_weeks):
             cost_time = time.perf_counter() - start_time
             print("get file %s cost time: %f s" % (file_name, cost_time))
             for line_count, item in enumerate(line_contents):
+                if not item.startswith("#EXTINF:"):
+                    continue
+
                 for keyword in new_keywords:
                     if keyword in item:
                         iptv_result[line_contents[line_count + 1]] = item + "\n"
+                        print("\033[1;35m%s\n%s\033[0m"%(item, line_contents[line_count + 1]))
                         break
 
         if len(iptv_result) > 50:
@@ -136,7 +166,7 @@ try:
     print("\033[1;32m-----search keyword %s cost time: %f s with %d results\033[0m" % (all_keywords, cost_time, len(iptv_result) - result_count))
     result_count = len(iptv_result)
 finally:
-    if (not bool(iptv_result)):
+    if not iptv_result:
         print("\033[1;31mresult is empty\033[0m")
         exit(1)
 
@@ -152,8 +182,9 @@ finally:
             continue
 
         print("testing(%d/%d) %s"%(test_index, result_count, value + key))
-        if (key.startswith("https") or 
-            key.startswith("http") and is_http_link_valid(key) or
+        isHttps = key.startswith("https")
+        if (isHttps and is_https_link_valid(key) or
+            not isHttps and key.startswith("http") and is_http_link_valid(key) or
             key.startswith("rtmp") and is_rtmp_link_valid(key)):
             file.write(value + key + "\n\n")
             found_count = found_count + 1

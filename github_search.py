@@ -1,5 +1,6 @@
 #coding=utf-8
 
+import urllib
 from github import Github
 import time
 import datetime
@@ -83,7 +84,7 @@ def do_search(keywords, iptv_result, end_weeks, begin_weeks = 0):
                 new_keywords.append(new_keyword)
         print("keywords: " + keyword + new_keyword)
    # 使用 GitHub API 搜索仓库
-    repos = g.search_repositories(query = "iptv", sort = "updated")
+    repos = g.search_repositories(query = "iptv", sort = "updated", order = "desc")
     today = datetime.date.today()
     early_date = today - datetime.timedelta(weeks = end_weeks)
     late_date = today - datetime.timedelta(weeks = begin_weeks)
@@ -99,7 +100,7 @@ def do_search(keywords, iptv_result, end_weeks, begin_weeks = 0):
         last_updated = repo.updated_at.date()
         print("update at " + str(last_updated))
         if last_updated  > late_date:
-            continue;
+            continue
         
         if (last_updated < early_date):
             break
@@ -110,22 +111,26 @@ def do_search(keywords, iptv_result, end_weeks, begin_weeks = 0):
         print("-get repo %s cost time: %f s" % (repo.full_name, cost_time))
         # 遍历仓库中的所有文件
         while root:
-            content_file = root.pop(0)
-            file_name = content_file.name
-            if content_file.type == "dir":
-                if file_name != ".github":
-                    root.extend(repo.get_contents(content_file.path))
-                continue
+            try:
+                content_file = root.pop(0)
+                file_name = content_file.name
+                if content_file.type == "dir":
+                    if file_name != ".github":
+                        root.extend(repo.get_contents(content_file.path))
+                    continue
 
-            if (file_name.rfind(".m3u") == -1):
-                continue
+                if (file_name.rfind(".m3u") == -1):
+                    continue
 
-            need_decode = True
-            if (content_file.encoding == "none"):
-                need_decode = False
-            elif (content_file.encoding != "base64"):
-                print("\033[1;31m" + file_name + " encoding is " + content_file.encoding + "\033[0m")
-                # other encode here
+                need_decode = True
+                if (content_file.encoding == "none"):
+                    need_decode = False
+                elif (content_file.encoding != "base64"):
+                    print("\033[1;31m" + file_name + " encoding is " + content_file.encoding + "\033[0m")
+                    # other encode here
+                    continue
+            except Exception as e:
+                print("\033[1;31mrepos travel exception:%s!\033[0m"%str(e))
                 continue
 
             start_time = time.perf_counter()
@@ -162,10 +167,10 @@ if (platform.system() == "Windows"):
 try:
     start_time = time.perf_counter()
     do_search(keywords, iptv_result, 78)
-    cost_time = time.perf_counter() - start_time
-    print("\033[1;32m-----search keyword %s cost time: %f s with %d results\033[0m" % (all_keywords, cost_time, len(iptv_result) - result_count))
-    result_count = len(iptv_result)
 finally:
+    cost_time = time.perf_counter() - start_time
+    result_count = len(iptv_result)
+    print("\033[1;32m-----search keyword %s cost time: %f s with %d results\033[0m" % (all_keywords, cost_time, result_count))
     if not iptv_result:
         print("\033[1;31mresult is empty\033[0m")
         exit(1)
@@ -182,9 +187,8 @@ finally:
             continue
 
         print("testing(%d/%d) %s"%(test_index, result_count, value + key))
-        isHttps = key.startswith("https")
-        if (isHttps and is_https_link_valid(key) or
-            not isHttps and key.startswith("http") and is_http_link_valid(key) or
+        if (key.startswith("http") and is_https_link_valid(key) or
+            #not isHttps and key.startswith("http") and is_http_link_valid(key) or
             key.startswith("rtmp") and is_rtmp_link_valid(key)):
             file.write(value + key + "\n\n")
             found_count = found_count + 1
